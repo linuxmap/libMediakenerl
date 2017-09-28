@@ -9,6 +9,7 @@
 
 #include "mk_media_worker.h"
 #include "mk_media_cmdutils.h"
+#include "mk_task_monitor.h"
 #include "libavutil/avassert.h"
 
 
@@ -2238,7 +2239,7 @@ static void mk_print_sdp(mk_task_ctx_t* task)
         printf("SDP:\n%s\n", sdp);
         fflush(stdout);
     } else {
-        if (avio_open2(&sdp_pb, task->sdp_filename, AVIO_FLAG_WRITE, &task->int_cb, NULL) < 0) {
+        if (avio_open2(&sdp_pb, task->sdp_filename, AVIO_FLAG_WRITE, &task->input_cb, NULL) < 0) {
             av_log(NULL, AV_LOG_ERROR, "Failed to open sdp file '%s'\n", task->sdp_filename);
         } else {
             avio_printf(sdp_pb, "SDP:\n%s", sdp);
@@ -2392,7 +2393,7 @@ static int mk_check_init_output_file(mk_task_ctx_t *task,mk_output_file_t*of, in
             return 0;
     }
 
-    of->ctx->interrupt_callback = task->int_cb;
+    of->ctx->interrupt_callback = task->output_cb;
 
     ret = avformat_write_header(of->ctx, &of->opts);
     if (ret < 0) {
@@ -3817,6 +3818,9 @@ static int mk_main_transcode(mk_task_ctx_t* task)
         /* dump report by using the output first video and audio streams */
         mk_print_report(task,0, timer_start, cur_time,&task->stat);
 
+        /* report the heartbeat to the monitor thread */
+        mk_report_task_monitor(task);
+
         task->status = MK_TASK_STATUS_RUNNING;
     }
     mk_free_input_threads(task);
@@ -4022,6 +4026,7 @@ int mk_main_task(mk_task_ctx_t* task)
         av_log(NULL, AV_LOG_FATAL, "  %s\n", name);*/
     task->status = MK_TASK_STATUS_START;
     task->running= 1;
+    mk_report_task_monitor(task);
     do {
 
         ret = mk_ffmpeg_parse_options(task,task->nparamcount, task->paramlist);

@@ -1,8 +1,10 @@
 #include "libMediaKenerl.h"
 #include "mk_common.h"
+#include "mk_task_monitor.h"
 
 static  int32_t g_mk_lib_init = 0;
 static log_callback callback_fun = NULL;
+static  int32_t g_mk_task_monitor = 0;
 /* log call back funciton */
 static void mk_log_callback_function(void *ptr, int level, const char *fmt, va_list vl)
 {
@@ -34,14 +36,15 @@ static  void* mk_task_thread(void * param)
 }
 
 /* init the media kenerl libary */
-int32_t   mk_lib_init(log_callback log_cb)
+int32_t   mk_lib_init(log_callback log_cb,int32_t task_monitor)
 {
     if(g_mk_lib_init)
     {
         return MK_ERROR_CODE_OK;
     }
 
-    callback_fun = log_cb;
+    callback_fun      = log_cb;
+    g_mk_task_monitor = task_monitor;
 
     av_log_set_flags(AV_LOG_SKIP_REPEATED);
     /*
@@ -73,6 +76,12 @@ int32_t   mk_lib_init(log_callback log_cb)
     av_register_all();
     avformat_network_init();
 
+    if(g_mk_task_monitor) {
+        if(MK_ERROR_CODE_OK != mk_init_task_monitor()) {
+            return MK_ERROR_CODE_FAIL;
+        }
+    }
+
     g_mk_lib_init = 1;
 
     return MK_ERROR_CODE_OK;
@@ -83,6 +92,9 @@ void      mk_lib_release()
 {
     callback_fun = NULL;
     avformat_network_deinit();
+    if(g_mk_task_monitor) {
+        mk_release_task_monitor();
+    }
     g_mk_lib_init = 0;
 }
 
@@ -108,6 +120,9 @@ void      mk_destory_handle(MK_HANDLE handle)
     mk_task_ctx_t* task = (mk_task_ctx_t*)handle;
     if(NULL != task)
     {
+        if(g_mk_task_monitor) {
+            mk_unreg_task_monitor(task);
+        }
         if(NULL != task->paramlist)
         {
             int i = 0;
@@ -162,8 +177,17 @@ int32_t   mk_run_task(MK_HANDLE handle,uint32_t argc,char** argv)
 
     task->nparamcount = nparamcount;
 
+
+
     int32_t ret = MK_ERROR_CODE_OK;
     task->running = 1;
+    if(g_mk_task_monitor) {
+        ret = mk_reg_task_monitor(task);
+        if( MK_ERROR_CODE_OK != ret) {
+            mk_mutex_unlock(task->mutex);
+            return MK_ERROR_CODE_FAIL;
+        }
+    }
     ret = mk_create_thread((MK_THREAD_FUNC)mk_task_thread,task,&task->thread,MK_DEFAULT_STACK_SIZE);
 
     if( MK_ERROR_CODE_OK != mk_mutex_unlock(task->mutex)) {
@@ -177,6 +201,9 @@ void      mk_stop_task(MK_HANDLE handle)
     mk_task_ctx_t* task = (mk_task_ctx_t*)handle;
     if( MK_ERROR_CODE_OK != mk_mutex_lock(task->mutex)) {
         return ;
+    }
+    if(g_mk_task_monitor) {
+        mk_unreg_task_monitor(task);
     }
     task->running       = 0;
     if( MK_ERROR_CODE_OK != mk_mutex_unlock(task->mutex)) {

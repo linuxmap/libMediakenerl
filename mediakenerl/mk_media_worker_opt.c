@@ -84,7 +84,17 @@ static int input_stream_potentially_available = 0;
 static int ignore_unknown_streams = 0;
 static int copy_unknown_streams = 0;
 
-static int mk_decode_interrupt_cb(void *ctx)
+static int mk_input_interrupt_cb(void *ctx)
+{
+    mk_task_ctx_t* task = (mk_task_ctx_t*)ctx;
+
+    if((task->exited)||(!task->running)){
+        return 1;
+    }
+    return 0;
+}
+
+static int mk_output_interrupt_cb(void *ctx)
 {
     mk_task_ctx_t* task = (mk_task_ctx_t*)ctx;
 
@@ -874,7 +884,7 @@ static void mk_dump_attachment(mk_task_ctx_t* task,AVStream *st, const char *fil
     }
 
 
-    if ((ret = avio_open2(&out, filename, AVIO_FLAG_WRITE, &task->int_cb, NULL)) < 0) {
+    if ((ret = avio_open2(&out, filename, AVIO_FLAG_WRITE, &task->input_cb, NULL)) < 0) {
         av_log(NULL, AV_LOG_FATAL, "Could not open file %s for writing.\n",
                filename);
         task->running = 0;
@@ -977,7 +987,7 @@ static int mk_open_input_file(mk_task_ctx_t* task,mk_option_ctx_t *o, const char
         av_format_set_data_codec(ic, mk_find_codec_or_die(task,data_codec_name, AVMEDIA_TYPE_DATA, 0));
 
     ic->flags |= AVFMT_FLAG_NONBLOCK;
-    ic->interrupt_callback = task->int_cb;
+    ic->interrupt_callback = task->input_cb;
 
     if (!av_dict_get(o->g->format_opts, "scan_all_pmts", NULL, AV_DICT_MATCH_CASE)) {
         av_dict_set(&o->g->format_opts, "scan_all_pmts", "1", AV_DICT_DONT_OVERWRITE);
@@ -1904,7 +1914,7 @@ static int mk_read_ffserver_streams(mk_task_ctx_t* task,mk_option_ctx_t *o, AVFo
     int i, err;
     AVFormatContext *ic = avformat_alloc_context();
 
-    ic->interrupt_callback = task->int_cb;
+    ic->interrupt_callback = task->input_cb;
     err = avformat_open_input(&ic, filename, NULL, NULL);
     if (err < 0)
         return err;
@@ -2080,7 +2090,7 @@ static int mk_open_output_file(mk_task_ctx_t* task,mk_option_ctx_t *o, const cha
         oc->duration = o->recording_time;
 
     file_oformat= oc->oformat;
-    oc->interrupt_callback = task->int_cb;
+    oc->interrupt_callback = task->output_cb;
 
     /* create streams for all unlabeled output pads */
     for (i = 0; i < task->nb_filtergraphs; i++) {
@@ -2309,7 +2319,7 @@ loop_end:
         const char *p;
         int64_t len;
 
-        if ((err = avio_open2(&pb, o->attachments[i], AVIO_FLAG_READ, &task->int_cb, NULL)) < 0) {
+        if ((err = avio_open2(&pb, o->attachments[i], AVIO_FLAG_READ, &task->output_cb, NULL)) < 0) {
             av_log(NULL, AV_LOG_FATAL, "Could not open attachment file %s.\n",
                    o->attachments[i]);
             task->running = 0;
@@ -3185,8 +3195,10 @@ void mk_init_ffmpeg_option(mk_task_ctx_t* task)
     task->status                      = MK_TASK_STATUS_INIT;
     task->running                     = 0;
     task->transcode_init_done         = 0;
-    task->int_cb.callback             = mk_decode_interrupt_cb;
-    task->int_cb.opaque               = task ;
+    task->input_cb.callback           = mk_input_interrupt_cb;
+    task->input_cb.opaque             = task ;
+    task->output_cb.callback          = mk_output_interrupt_cb;
+    task->output_cb.opaque            = task ;
     task->vstats_file                 = NULL;
     task->nb_frames_dup               = 0;
     task->nb_frames_drop              = 0;
@@ -3196,6 +3208,7 @@ void mk_init_ffmpeg_option(mk_task_ctx_t* task)
     task->main_return_code            = 0;
     task->nparamcount                 = 0;
     task->paramlist                   = NULL;
+    task->heartbeat                   = 0;
 }
 
 

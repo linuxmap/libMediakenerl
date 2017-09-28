@@ -1,0 +1,40 @@
+﻿生成启动时间为 2016-12-13 15:07:42。
+     1>项目“\\tsclient\E\02.MyCode\allmedia\libMediakenerl\win32\libMediakenerl\libMediakenerl.vcxproj”在节点 2 上(Build 个目标)。
+     1>ClCompile:
+         D:\Microsoft Visual Studio 12.0\VC\bin\CL.exe /c /ZI /nologo /W3 /WX- /Od /Oy- /D WIN32 /D _DEBUG /D _WINDOWS /D _USRDLL /D LIBMEDIAKENERL_EXPORTS /D _WINDLL /D _UNICODE /D UNICODE /Gm /EHsc /RTC1 /MDd /GS /fp:precise /Zc:wchar_t /Zc:forScope /Yc"stdafx.h" /Fp"Debug\libMediakenerl.pch" /Fo"Debug\\" /Fd"Debug\vc120.pdb" /Gd /TP /analyze- /errorReport:prompt stdafx.cpp
+         stdafx.cpp
+         D:\Microsoft Visual Studio 12.0\VC\bin\CL.exe /c /ZI /nologo /W3 /WX- /Od /Oy- /D WIN32 /D _DEBUG /D _WINDOWS /D _USRDLL /D LIBMEDIAKENERL_EXPORTS /D _WINDLL /D _UNICODE /D UNICODE /Gm /EHsc /RTC1 /MDd /GS /fp:precise /Zc:wchar_t /Zc:forScope /Yu"stdafx.h" /Fp"Debug\libMediakenerl.pch" /Fo"Debug\\" /Fd"Debug\vc120.pdb" /Gd /TC /analyze- /errorReport:prompt ..\..\mediakenerl\libMediaKenerl.c ..\..\mediakenerl\mk_media_cmdutils.c ..\..\mediakenerl\mk_media_cmdutils_opencl.c ..\..\mediakenerl\mk_media_cuvid.c ..\..\mediakenerl\mk_media_dxva2.c ..\..\mediakenerl\mk_media_qsv.c ..\..\mediakenerl\mk_media_vaapi.c ..\..\mediakenerl\mk_media_vdpau.c ..\..\mediakenerl\mk_media_videotoolbox.c ..\..\mediakenerl\mk_media_worker.c ..\..\mediakenerl\mk_media_worker_filter.c ..\..\mediakenerl\mk_media_worker_opt.c ..\..\mediakenerl\mk_mutex.c ..\..\mediakenerl\mk_thread.c
+         mk_thread.c
+     1>\\tsclient\e\02.mycode\allmedia\libmediakenerl\mediakenerl\mk_thread.c : fatal error C1853: “Debug\libMediakenerl.pch”预编译头文件来自编译器的早期版本，或者预编译头为 C++ 而在 C 中使用它(或相反)
+         mk_mutex.c
+     1>\\tsclient\e\02.mycode\allmedia\libmediakenerl\mediakenerl\mk_mutex.c : fatal error C1853: “Debug\libMediakenerl.pch”预编译头文件来自编译器的早期版本，或者预编译头为 C++ 而在 C 中使用它(或相反)
+         mk_media_worker_opt.c
+     1>\\tsclient\e\02.mycode\allmedia\libmediakenerl\mediakenerl\mk_media_worker_opt.c : fatal error C1853: “Debug\libMediakenerl.pch”预编译头文件来自编译器的早期版本，或者预编译头为 C++ 而在 C 中使用它(或相反)
+         mk_media_worker_filter.c
+     1>\\tsclient\e\02.mycode\allmedia\libmediakenerl\mediakenerl\mk_media_worker_filter.c : fatal error C1853: “Debug\libMediakenerl.pch”预编译头文件来自编译器的早期版本，或者预编译头为 C++ 而在 C 中使用它(或相反)
+         mk_media_worker.c
+     1>\\tsclient\e\02.mycode\allmedia\libmediakenerl\mediakenerl\mk_media_worker.c : fatal error C1853: “Debug\libMediakenerl.pch”预编译头文件来自编译器的早期版本，或者预编译头为 C++ 而在 C 中使用它(或相反)
+         mk_media_videotoolbox.c
+     1>\\tsclient\e\02.mycode\allmedia\libmediakenerl\mediakenerl\mk_media_videotoolbox.c : fatal error C1853: “Debug\libMediakenerl.pch”预编译头文件来自编译器的早期版本，或者预编译头为 C++ 而在 C 中使用它(或相反)
+         mk_media_vdpau.c
+     1>\\tsclient\e\02.mycode\allmedia\libmediakenerl\mediakenerl\mk_media_vdpau.c : fatal error C1853: “Debug\libMediakenerl.pch”预编译头文件来自编译器的早期版本，或者预编译头为 C++ 而在 C 中使用它(或相反)
+         mk_media_vaapi.c
+     1>\\tsclient\e\02.mycode\allmedia\libmediakenerl\mediakenerl\mk_media_vaapi.c : fatal error C1853: “Debug\libMediakenerl.pch”预编译头文件来自编译器的早期版本，或者预编译头为 C++ 而在 C 中使用它(或相反)
+         mk_media_qsv.c
+     1>\\tsclient\e\02.mycode\allmedia\libmediakenerl\mediakenerl\mk_media_qsv.c : fatal error C1853: “Debug\libMediakenerl.pch”预编译头文件来自编译器的早期版本，或者预编译头为 C++ 而在 C 中使用它(或相反)
+         mk_media_dxva2.c
+     1>\\tsclient\e\02.mycode\allmedia\libmediakenerl\mediakenerl\mk_media_dxva2.c : fatal error C1853: “Debug\libMediakenerl.pch”预编译头文件来自编译器的早期版本，或者预编译头为 C++ 而在 C 中使用它(或相反)
+         mk_media_cuvid.c
+     1>\\tsclient\e\02.mycode\allmedia\libmediakenerl\mediakenerl\mk_media_cuvid.c : fatal error C1853: “Debug\libMediakenerl.pch”预编译头文件来自编译器的早期版本，或者预编译头为 C++ 而在 C 中使用它(或相反)
+         mk_media_cmdutils_opencl.c
+     1>\\tsclient\e\02.mycode\allmedia\libmediakenerl\mediakenerl\mk_media_cmdutils_opencl.c : fatal error C1853: “Debug\libMediakenerl.pch”预编译头文件来自编译器的早期版本，或者预编译头为 C++ 而在 C 中使用它(或相反)
+         mk_media_cmdutils.c
+     1>\\tsclient\e\02.mycode\allmedia\libmediakenerl\mediakenerl\mk_media_cmdutils.c : fatal error C1853: “Debug\libMediakenerl.pch”预编译头文件来自编译器的早期版本，或者预编译头为 C++ 而在 C 中使用它(或相反)
+         libMediaKenerl.c
+     1>\\tsclient\e\02.mycode\allmedia\libmediakenerl\mediakenerl\libmediakenerl.c : fatal error C1853: “Debug\libMediakenerl.pch”预编译头文件来自编译器的早期版本，或者预编译头为 C++ 而在 C 中使用它(或相反)
+         正在生成代码...
+     1>已完成生成项目“\\tsclient\E\02.MyCode\allmedia\libMediakenerl\win32\libMediakenerl\libMediakenerl.vcxproj”(Build 个目标)的操作 - 失败。
+
+生成失败。
+
+已用时间 00:00:43.23

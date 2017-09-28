@@ -13,7 +13,7 @@
 
 
 /* init the media kenerl libary */
-MK_API int32_t   mk_lib_init(log_callback log_cb);
+MK_API int32_t   mk_lib_init(log_callback log_cb,int32_t task_monitor);
 /* release the media kenerl bibary */
 MK_API void      mk_lib_release();
 /* create a media kenerl handle for media task */

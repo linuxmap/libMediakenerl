@@ -601,7 +601,8 @@ typedef struct {
     int                           abort_on_flags;
     int                           print_stats;
     int                           frame_bits_per_raw_sample;
-    AVIOInterruptCB               int_cb;
+    AVIOInterruptCB               input_cb;
+    AVIOInterruptCB               output_cb;
     AVDictionary                 *sws_dict;
     AVDictionary                 *swr_opts;
     AVDictionary                 *format_opts;
@@ -623,6 +624,7 @@ typedef struct {
     mk_mutex_t                   *mutex;
     int                           status;
     mk_task_stat_info_t           stat;
+    time_t                        heartbeat;
 } mk_task_ctx_t;
 
 #endif /*__MK_MEDIA_COMMON_H__*/

@@ -34,9 +34,11 @@ INCPATH   += -I./ -I$(SRC_DIR) -I$(FFMPEG_DIR)
 
 
 CFILES    += $(SRC_DIR)mk_media_cmdutils.c $(SRC_DIR)mk_media_worker.c $(SRC_DIR)mk_media_worker_opt.c 
-CFILES    += $(SRC_DIR)mk_media_worker_filter.c $(SRC_DIR)mk_thread.c $(SRC_DIR)mk_mutex.c $(SRC_DIR)libMediaKenerl.c
+CFILES    += $(SRC_DIR)mk_media_worker_filter.c $(SRC_DIR)mk_thread.c 
+CFILES    += $(SRC_DIR)mk_task_monitor.c $(SRC_DIR)mk_mutex.c $(SRC_DIR)libMediaKenerl.c
 HEADFILES += $(SRC_DIR)mk_config.h $(SRC_DIR)mk_common.h $(SRC_DIR)mk_def.h $(SRC_DIR)mk_media_cmdutils.h
-HEADFILES += $(SRC_DIR)mk_media_cmdutils_opts.h $(SRC_DIR)mk_media_worker.h $(SRC_DIR)mk_thread.h $(SRC_DIR)mk_mutex.h $(SRC_DIR)libMediaKenerl.h
+HEADFILES += $(SRC_DIR)mk_media_cmdutils_opts.h $(SRC_DIR)mk_media_worker.h $(SRC_DIR)mk_thread.h 
+HEADFILES += $(SRC_DIR)mk_task_monitor.h $(SRC_DIR)mk_mutex.h $(SRC_DIR)libMediaKenerl.h
 
 ifdef OPENCL
 CFILES    += $(SRC_DIR)mk_media_cmdutils_opencl.c

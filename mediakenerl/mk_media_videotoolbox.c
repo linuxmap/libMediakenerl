@@ -22,7 +22,7 @@ char *videotoolbox_pixfmt;
 
 static int mk_videotoolbox_retrieve_data(AVCodecContext *s, AVFrame *frame)
 {
-    mk_input_stream_t*ist = s->opaque;
+    mk_input_stream_t *ist = s->opaque;
     VTContext  *vt = ist->hwaccel_ctx;
     CVPixelBufferRef pixbuf = (CVPixelBufferRef)frame->data[3];
     OSType pixel_format = CVPixelBufferGetPixelFormatType(pixbuf);
@@ -30,7 +30,6 @@ static int mk_videotoolbox_retrieve_data(AVCodecContext *s, AVFrame *frame)
     uint8_t *data[4] = { 0 };
     int linesize[4] = { 0 };
     int planes, ret, i;
-    char codec_str[32];
 
     av_frame_unref(vt->tmp_frame);
 
@@ -42,9 +41,9 @@ static int mk_videotoolbox_retrieve_data(AVCodecContext *s, AVFrame *frame)
     case kCVPixelFormatType_420YpCbCr8BiPlanarVideoRange: vt->tmp_frame->format = AV_PIX_FMT_NV12; break;
 #endif
     default:
-        av_get_codec_tag_string(codec_str, sizeof(codec_str), s->codec_tag);
         av_log(NULL, AV_LOG_ERROR,
-               "%s: Unsupported pixel format: %s\n", codec_str, videotoolbox_pixfmt);
+               "%s: Unsupported pixel format: %s\n",
+               av_fourcc2str(s->codec_tag), videotoolbox_pixfmt);
         return AVERROR(ENOSYS);
     }
 
@@ -89,7 +88,7 @@ static int mk_videotoolbox_retrieve_data(AVCodecContext *s, AVFrame *frame)
 
 static void mk_videotoolbox_uninit(AVCodecContext *s)
 {
-    InputStream *ist = s->opaque;
+    mk_input_stream_t *ist = s->opaque;
     VTContext  *vt = ist->hwaccel_ctx;
 
     ist->hwaccel_uninit        = NULL;
@@ -109,7 +108,7 @@ static void mk_videotoolbox_uninit(AVCodecContext *s)
     av_freep(&ist->hwaccel_ctx);
 }
 
-int mk_videotoolbox_init(AVCodecContext *s)
+int videotoolbox_init(AVCodecContext *s)
 {
     mk_input_stream_t *ist = s->opaque;
     int loglevel = (ist->hwaccel_id == HWACCEL_AUTO) ? AV_LOG_VERBOSE : AV_LOG_ERROR;
@@ -182,4 +181,4 @@ fail:
     mk_videotoolbox_uninit(s);
     return ret;
 }
-}
+

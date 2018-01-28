@@ -162,12 +162,32 @@ void mk_cleanup_task(mk_task_ctx_t* task)
         mk_filter_graph_t *fg = task->filtergraphs[i];
         avfilter_graph_free(&fg->graph);
         for (j = 0; j < fg->nb_inputs; j++) {
+            while (av_fifo_size(fg->inputs[j]->frame_queue)) {
+                AVFrame *frame;
+                av_fifo_generic_read(fg->inputs[j]->frame_queue, &frame,
+                                     sizeof(frame), NULL);
+                av_frame_free(&frame);
+            }
+            av_fifo_free(fg->inputs[j]->frame_queue);
+            if (fg->inputs[j]->ist->sub2video.sub_queue) {
+                while (av_fifo_size(fg->inputs[j]->ist->sub2video.sub_queue)) {
+                    AVSubtitle sub;
+                    av_fifo_generic_read(fg->inputs[j]->ist->sub2video.sub_queue,
+                                         &sub, sizeof(sub), NULL);
+                    avsubtitle_free(&sub);
+                }
+                av_fifo_free(fg->inputs[j]->ist->sub2video.sub_queue);
+            }
+            av_buffer_unref(&fg->inputs[j]->hw_frames_ctx);
             av_freep(&fg->inputs[j]->name);
             av_freep(&fg->inputs[j]);
         }
         av_freep(&fg->inputs);
         for (j = 0; j < fg->nb_outputs; j++) {
             av_freep(&fg->outputs[j]->name);
+            av_freep(&fg->outputs[j]->formats);
+            av_freep(&fg->outputs[j]->channel_layouts);
+            av_freep(&fg->outputs[j]->sample_rates);
             av_freep(&fg->outputs[j]);
         }
         av_freep(&fg->outputs);
@@ -221,12 +241,14 @@ void mk_cleanup_task(mk_task_ctx_t* task)
         avcodec_free_context(&ost->enc_ctx);
         avcodec_parameters_free(&ost->ref_par);
 
-        while (ost->muxing_queue && av_fifo_size(ost->muxing_queue)) {
-            AVPacket pkt;
-            av_fifo_generic_read(ost->muxing_queue, &pkt, sizeof(pkt), NULL);
-            av_packet_unref(&pkt);
+        if (ost->muxing_queue) {
+            while (av_fifo_size(ost->muxing_queue)) {
+                AVPacket pkt;
+                av_fifo_generic_read(ost->muxing_queue, &pkt, sizeof(pkt), NULL);
+                av_packet_unref(&pkt);
+            }
+            av_fifo_freep(&ost->muxing_queue);
         }
-        av_fifo_freep(&ost->muxing_queue);
 
         av_freep(&task->output_streams[i]);
     }
@@ -907,18 +929,11 @@ void *mk_grow_array(void *array, int elem_size, int *size, int new_size)
 
 double mk_get_rotation(AVStream *st)
 {
-    AVDictionaryEntry *rotate_tag = av_dict_get(st->metadata, "rotate", NULL, 0);
     uint8_t* displaymatrix = av_stream_get_side_data(st,
                                                      AV_PKT_DATA_DISPLAYMATRIX, NULL);
     double theta = 0;
 
-    if (rotate_tag && *rotate_tag->value && strcmp(rotate_tag->value, "0")) {
-        char *tail;
-        theta = av_strtod(rotate_tag->value, &tail);
-        if (*tail)
-            theta = 0;
-    }
-    if (displaymatrix && !theta)
+    if (displaymatrix)
         theta = -av_display_rotation_get((int32_t*) displaymatrix);
 
     theta -= 360*floor(theta/360 + 0.9/360);

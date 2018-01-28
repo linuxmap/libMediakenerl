@@ -7,6 +7,7 @@
 
 #include <stdint.h>
 #include <stdio.h>
+#include <stdatomic.h>
 #include <signal.h>
 #if MK_APP_OS == MK_OS_WIN32
 #define snprintf _snprintf
@@ -307,6 +308,8 @@ typedef struct {
     int                           nb_disposition;
     mk_specifier_opt_t           *program;
     int                           nb_program;
+    mk_specifier_opt_t           *time_bases;
+    int                           nb_time_bases;
 } mk_option_ctx_t;
 
 typedef struct  {
@@ -314,6 +317,16 @@ typedef struct  {
     struct mk_input_stream_t     *ist;
     struct mk_filter_graph_t     *graph;
     uint8_t                      *name;
+    enum AVMediaType              type;   // AVMEDIA_TYPE_SUBTITLE for sub2video
+    AVFifoBuffer                 *frame_queue;
+    int                           format; // parameters configured for this input
+    int                           width, height;
+    AVRational                    sample_aspect_ratio;
+    int                           sample_rate;
+    int                           channels;
+    uint64_t                      channel_layout;
+    AVBufferRef                  *hw_frames_ctx;
+    int                           eof;
 } mk_input_filter_t;
 
 typedef struct {
@@ -324,6 +337,16 @@ typedef struct {
     /* temporary storage until stream maps are processed */
     AVFilterInOut                *out_tmp;
     enum AVMediaType              type;
+    /* desired output stream properties */
+    int                           width, height;
+    AVRational                    frame_rate;
+    int                           format;
+    int                           sample_rate;
+    uint64_t                      channel_layout;
+    // those are only set if no format is specified and the encoder gives us multiple options
+    int                          *formats;
+    uint64_t                     *channel_layouts;
+    int                          *sample_rates;
 } mk_output_filter_t;
 
 typedef struct  mk_filter_graph_t{
@@ -361,6 +384,9 @@ typedef struct mk_input_stream_t{
     int64_t                       filter_in_rescale_delta_last;
     int64_t                       min_pts; /* pts with the smallest value in a current stream */
     int64_t                       max_pts; /* pts with the higher value in a current stream */
+    // when forcing constant input framerate through -r,
+    // this contains the pts that will be given to the next decoded frame
+    int64_t                       cfr_next_pts;
     int64_t                       nb_samples; /* number of samples in the last decoded audio frame before looping */
     double                        ts_scale;
     int                           saw_first_ts;
@@ -369,13 +395,6 @@ typedef struct mk_input_stream_t{
     int                           top_field_first;
     int                           guess_layout_max;
     int                           autorotate;
-    int                           resample_height;
-    int                           resample_width;
-    int                           resample_pix_fmt;
-    int                           resample_sample_fmt;
-    int                           resample_sample_rate;
-    int                           resample_channels;
-    uint64_t                      resample_channel_layout;
     int                           fix_sub_duration;
     struct { /* previous decoded subtitle and related variables */
         int got_output;
@@ -386,6 +405,7 @@ typedef struct mk_input_stream_t{
     struct sub2video {
         int64_t last_pts;
         int64_t end_pts;
+        AVFifoBuffer *sub_queue;    ///< queue of AVSubtitle* before filter init
         AVFrame *frame;
         int w, h;
     } sub2video;
@@ -419,6 +439,7 @@ typedef struct mk_input_stream_t{
     uint64_t                      samples_decoded;
     int64_t                      *dts_buffer;
     int                           nb_dts_buffer;
+    int                           got_output;
 } mk_input_stream_t;
 
 typedef struct {
@@ -481,6 +502,8 @@ typedef struct  mk_output_stream_t{
     int64_t                       first_pts;
     /* dts of the last packet sent to the muxer */
     int64_t                       last_mux_dts;
+    // the timebase of the packets sent to the muxer
+    AVRational                    mux_timebase;
     int                           nb_bitstream_filters;
     uint8_t                      *bsf_extradata_updated;
     AVBSFContext                **bsf_ctx;
@@ -499,6 +522,7 @@ typedef struct  mk_output_stream_t{
     int                           force_fps;
     int                           top_field_first;
     int                           rotate_overridden;
+    double                        rotate_override_value;
     AVRational                    frame_aspect_ratio;
     /* forced key frames */
     int64_t                      *forced_kf_pts;
@@ -529,6 +553,7 @@ typedef struct  mk_output_stream_t{
     // The encoder and the bitstream filters have been initialized and the stream
     // parameters are set in the AVStream.
     int                           initialized;
+    int                           inputs_done;
     const char                   *attachment_filename;
     int                           copy_initial_nonkeyframes;
     int                           copy_prior_start;
@@ -581,6 +606,9 @@ typedef struct {
     int                           nb_filtergraphs;
     int                           hwaccel_lax_profile_check;
     AVBufferRef                  *hw_device_ctx;
+#if CONFIG_QSV
+   char                          *qsv_device;
+#endif
     char                         *vstats_filename;
     char                         *sdp_filename;
     float                         audio_drift_threshold;
@@ -601,19 +629,22 @@ typedef struct {
     int                           abort_on_flags;
     int                           print_stats;
     int                           frame_bits_per_raw_sample;
-    AVIOInterruptCB               input_cb;
-    AVIOInterruptCB               output_cb;
+    int                           filter_nbthreads;
+    int                           filter_complex_nbthreads;
+    int                           vstats_version;
+    AVIOInterruptCB               int_cb;
     AVDictionary                 *sws_dict;
     AVDictionary                 *swr_opts;
     AVDictionary                 *format_opts;
     AVDictionary                 *codec_opts;
     AVDictionary                 *resample_opts;
     volatile int                  running;
-    volatile int                  transcode_init_done;
+    atomic_int                    transcode_init_done;
     volatile int                  exited;
     FILE                         *vstats_file;
     int                           nb_frames_dup;
     int                           nb_frames_drop;
+    unsigned int                  dup_warning;
     int64_t                       decode_error_stat[2];
     uint8_t                      *subtitle_out;
     int                           main_return_code;
@@ -624,7 +655,6 @@ typedef struct {
     mk_mutex_t                   *mutex;
     int                           status;
     mk_task_stat_info_t           stat;
-    time_t                        heartbeat;
 } mk_task_ctx_t;
 
 #endif /*__MK_MEDIA_COMMON_H__*/

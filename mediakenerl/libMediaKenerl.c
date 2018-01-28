@@ -2,6 +2,8 @@
 #include "mk_common.h"
 #include "mk_task_monitor.h"
 
+/* current ffmpeg version 3.3.2 */
+
 static  int32_t g_mk_lib_init = 0;
 static log_callback callback_fun = NULL;
 static  int32_t g_mk_task_monitor = 0;

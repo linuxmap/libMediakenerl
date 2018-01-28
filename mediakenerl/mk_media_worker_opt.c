@@ -84,17 +84,7 @@ static int input_stream_potentially_available = 0;
 static int ignore_unknown_streams = 0;
 static int copy_unknown_streams = 0;
 
-static int mk_input_interrupt_cb(void *ctx)
-{
-    mk_task_ctx_t* task = (mk_task_ctx_t*)ctx;
-
-    if((task->exited)||(!task->running)){
-        return 1;
-    }
-    return 0;
-}
-
-static int mk_output_interrupt_cb(void *ctx)
+static int mk_decode_interrupt_cb(void *ctx)
 {
     mk_task_ctx_t* task = (mk_task_ctx_t*)ctx;
 
@@ -746,10 +736,6 @@ static void mk_add_input_streams(mk_task_ctx_t* task,mk_option_ctx_t *o, AVForma
             // avformat_find_stream_info() doesn't set this for us anymore.
             ist->dec_ctx->framerate = st->avg_frame_rate;
 
-            ist->resample_height  = ist->dec_ctx->height;
-            ist->resample_width   = ist->dec_ctx->width;
-            ist->resample_pix_fmt = ist->dec_ctx->pix_fmt;
-
             MATCH_PER_STREAM_OPT(frame_rates, str, framerate, ic, st);
             if (framerate && av_parse_video_rate(&ist->framerate,
                                                  framerate) < 0) {
@@ -822,11 +808,6 @@ static void mk_add_input_streams(mk_task_ctx_t* task,mk_option_ctx_t *o, AVForma
             MATCH_PER_STREAM_OPT(guess_layout_max, i, ist->guess_layout_max, ic, st);
             mk_guess_input_channel_layout(ist);
 
-            ist->resample_sample_fmt     = ist->dec_ctx->sample_fmt;
-            ist->resample_sample_rate    = ist->dec_ctx->sample_rate;
-            ist->resample_channels       = ist->dec_ctx->channels;
-            ist->resample_channel_layout = ist->dec_ctx->channel_layout;
-
             break;
         case AVMEDIA_TYPE_DATA:
         case AVMEDIA_TYPE_SUBTITLE: {
@@ -884,7 +865,7 @@ static void mk_dump_attachment(mk_task_ctx_t* task,AVStream *st, const char *fil
     }
 
 
-    if ((ret = avio_open2(&out, filename, AVIO_FLAG_WRITE, &task->input_cb, NULL)) < 0) {
+    if ((ret = avio_open2(&out, filename, AVIO_FLAG_WRITE, &task->int_cb, NULL)) < 0) {
         av_log(NULL, AV_LOG_FATAL, "Could not open file %s for writing.\n",
                filename);
         task->running = 0;
@@ -934,6 +915,7 @@ static int mk_open_input_file(mk_task_ctx_t* task,mk_option_ctx_t *o, const char
         return -1;
         //exit_program(task,1);
     }
+    ic->flags |= AVFMT_FLAG_KEEP_SIDE_DATA;
     if (o->nb_audio_sample_rate) {
         av_dict_set_int(&o->g->format_opts, "sample_rate", o->audio_sample_rate[o->nb_audio_sample_rate - 1].u.i, 0);
     }
@@ -987,7 +969,7 @@ static int mk_open_input_file(mk_task_ctx_t* task,mk_option_ctx_t *o, const char
         av_format_set_data_codec(ic, mk_find_codec_or_die(task,data_codec_name, AVMEDIA_TYPE_DATA, 0));
 
     ic->flags |= AVFMT_FLAG_NONBLOCK;
-    ic->interrupt_callback = task->input_cb;
+    ic->interrupt_callback = task->int_cb;
 
     if (!av_dict_get(o->g->format_opts, "scan_all_pmts", NULL, AV_DICT_MATCH_CASE)) {
         av_dict_set(&o->g->format_opts, "scan_all_pmts", "1", AV_DICT_DONT_OVERWRITE);
@@ -1191,7 +1173,7 @@ static mk_output_stream_t *mk_new_output_stream(mk_task_ctx_t* task,mk_option_ct
     mk_output_stream_t *ost;
     AVStream *st = avformat_new_stream(oc, NULL);
     int idx      = oc->nb_streams - 1, ret = 0;
-    const char *bsfs = NULL;
+    const char *bsfs = NULL, *time_base = NULL;
     char *next, *codec_tag = NULL;
     double qscale = -1;
     int i;
@@ -1247,6 +1229,18 @@ static mk_output_stream_t *mk_new_output_stream(mk_task_ctx_t* task,mk_option_ct
         ost->encoder_opts  = mk_filter_codec_opts(o->g->codec_opts, ost->enc->id, oc, st, ost->enc);
     } else {
         ost->encoder_opts = mk_filter_codec_opts(o->g->codec_opts, AV_CODEC_ID_NONE, oc, st, NULL);
+    }
+
+    MATCH_PER_STREAM_OPT(time_bases, str, time_base, oc, st);
+    if (time_base) {
+        AVRational q;
+        if (av_parse_ratio(&q, time_base, INT_MAX, 0, NULL) < 0 ||
+            q.num <= 0 || q.den <= 0) {
+            av_log(NULL, AV_LOG_FATAL, "Invalid time base: %s\n", time_base);
+            task->running = 0;
+            return NULL;
+        }
+        st->time_base = q;
     }
 
     ost->max_frames = INT64_MAX;
@@ -1914,7 +1908,8 @@ static int mk_read_ffserver_streams(mk_task_ctx_t* task,mk_option_ctx_t *o, AVFo
     int i, err;
     AVFormatContext *ic = avformat_alloc_context();
 
-    ic->interrupt_callback = task->input_cb;
+    ic->flags |= AVFMT_FLAG_KEEP_SIDE_DATA;
+    ic->interrupt_callback = task->int_cb;
     err = avformat_open_input(&ic, filename, NULL, NULL);
     if (err < 0)
         return err;
@@ -1979,6 +1974,7 @@ static void mk_init_output_filter(mk_task_ctx_t* task,mk_output_filter_t *ofilte
     ost->filter       = ofilter;
 
     ofilter->ost      = ost;
+    ofilter->format   = -1;
 
     if (ost->stream_copy) {
         av_log(NULL, AV_LOG_ERROR, "Streamcopy requested for output stream %d:%d, "
@@ -2018,17 +2014,6 @@ static int mk_init_complex_filters(mk_task_ctx_t* task)
     return 0;
 }
 
-static int mk_configure_complex_filters(mk_task_ctx_t* task)
-{
-    int i, ret = 0;
-
-    for (i = 0; i < task->nb_filtergraphs; i++)
-        if (!mk_filtergraph_is_simple(task->filtergraphs[i]) &&
-            (ret = mk_configure_filtergraph(task,task->filtergraphs[i])) < 0)
-            return ret;
-    return 0;
-}
-
 static int mk_open_output_file(mk_task_ctx_t* task,mk_option_ctx_t *o, const char *filename)
 {
     AVFormatContext *oc;
@@ -2039,6 +2024,7 @@ static int mk_open_output_file(mk_task_ctx_t* task,mk_option_ctx_t *o, const cha
     mk_input_stream_t  *ist;
     AVDictionary *unused_opts = NULL;
     AVDictionaryEntry *e = NULL;
+    int format_flags = 0;
 
 
     if (o->stop_time != INT64_MAX && o->recording_time != INT64_MAX) {
@@ -2090,7 +2076,13 @@ static int mk_open_output_file(mk_task_ctx_t* task,mk_option_ctx_t *o, const cha
         oc->duration = o->recording_time;
 
     file_oformat= oc->oformat;
-    oc->interrupt_callback = task->output_cb;
+    oc->interrupt_callback = task->int_cb;
+
+    e = av_dict_get(o->g->format_opts, "fflags", NULL, 0);
+    if (e) {
+        const AVOption *o = av_opt_find(oc, "fflags", NULL, 0, 0);
+        av_opt_eval_flags(oc, o, e->value, &format_flags);
+    }
 
     /* create streams for all unlabeled output pads */
     for (i = 0; i < task->nb_filtergraphs; i++) {
@@ -2112,6 +2104,7 @@ static int mk_open_output_file(mk_task_ctx_t* task,mk_option_ctx_t *o, const cha
 
     /* ffserver seeking with date=... needs a date reference */
     if (!strcmp(file_oformat->name, "ffm") &&
+        !(format_flags & AVFMT_FLAG_BITEXACT) &&
         av_strstart(filename, "http:", NULL)) {
         int err = mk_parse_option(task,o, "metadata", "creation_time=now", options);
         if (err < 0) {
@@ -2319,7 +2312,7 @@ loop_end:
         const char *p;
         int64_t len;
 
-        if ((err = avio_open2(&pb, o->attachments[i], AVIO_FLAG_READ, &task->output_cb, NULL)) < 0) {
+        if ((err = avio_open2(&pb, o->attachments[i], AVIO_FLAG_READ, &task->int_cb, NULL)) < 0) {
             av_log(NULL, AV_LOG_FATAL, "Could not open attachment file %s.\n",
                    o->attachments[i]);
             task->running = 0;
@@ -2443,6 +2436,74 @@ loop_end:
                 }
             }
         }
+        /* set the filter output constraints */
+        if (ost->filter) {
+            mk_output_filter_t *f = ost->filter;
+            int count;
+            switch (ost->enc_ctx->codec_type) {
+            case AVMEDIA_TYPE_VIDEO:
+                f->frame_rate = ost->frame_rate;
+                f->width      = ost->enc_ctx->width;
+                f->height     = ost->enc_ctx->height;
+                if (ost->enc_ctx->pix_fmt != AV_PIX_FMT_NONE) {
+                    f->format = ost->enc_ctx->pix_fmt;
+                } else if (ost->enc->pix_fmts) {
+                    count = 0;
+                    while (ost->enc->pix_fmts[count] != AV_PIX_FMT_NONE)
+                        count++;
+                    f->formats = av_mallocz_array(count + 1, sizeof(*f->formats));
+                    if (!f->formats){
+                        task->running = 0;
+                        return -1;
+                    }
+                    memcpy(f->formats, ost->enc->pix_fmts, (count + 1) * sizeof(*f->formats));
+                }
+                break;
+            case AVMEDIA_TYPE_AUDIO:
+                if (ost->enc_ctx->sample_fmt != AV_SAMPLE_FMT_NONE) {
+                    f->format = ost->enc_ctx->sample_fmt;
+                } else if (ost->enc->sample_fmts) {
+                    count = 0;
+                    while (ost->enc->sample_fmts[count] != AV_SAMPLE_FMT_NONE)
+                        count++;
+                    f->formats = av_mallocz_array(count + 1, sizeof(*f->formats));
+                    if (!f->formats){
+                        task->running = 0;
+                        return -1;
+                    }
+                    memcpy(f->formats, ost->enc->sample_fmts, (count + 1) * sizeof(*f->formats));
+                }
+                if (ost->enc_ctx->sample_rate) {
+                    f->sample_rate = ost->enc_ctx->sample_rate;
+                } else if (ost->enc->supported_samplerates) {
+                    count = 0;
+                    while (ost->enc->supported_samplerates[count])
+                        count++;
+                    f->sample_rates = av_mallocz_array(count + 1, sizeof(*f->sample_rates));
+                    if (!f->sample_rates){
+                        task->running = 0;
+                        return -1;
+                    }
+                    memcpy(f->sample_rates, ost->enc->supported_samplerates,
+                           (count + 1) * sizeof(*f->sample_rates));
+                }
+                if (ost->enc_ctx->channels) {
+                    f->channel_layout = av_get_default_channel_layout(ost->enc_ctx->channels);
+                } else if (ost->enc->channel_layouts) {
+                    count = 0;
+                    while (ost->enc->channel_layouts[count])
+                        count++;
+                    f->channel_layouts = av_mallocz_array(count + 1, sizeof(*f->channel_layouts));
+                    if (!f->channel_layouts){
+                        task->running = 0;
+                        return -1;
+                    }
+                    memcpy(f->channel_layouts, ost->enc->channel_layouts,
+                           (count + 1) * sizeof(*f->channel_layouts));
+                }
+                break;
+            }
+        }
     }
 
     /* check filename in case of an image number is expected */
@@ -2534,8 +2595,6 @@ loop_end:
             av_dict_copy(&task->output_streams[i]->st->metadata, ist->st->metadata, AV_DICT_DONT_OVERWRITE);
             if (!task->output_streams[i]->stream_copy) {
                 av_dict_set(&task->output_streams[i]->st->metadata, "encoder", NULL, 0);
-                if (ist->autorotate)
-                    av_dict_set(&task->output_streams[i]->st->metadata, "rotate", NULL, 0);
             }
         }
 
@@ -2631,9 +2690,15 @@ loop_end:
             for (j = 0; j < oc->nb_streams; j++) {
                 ost = task->output_streams[task->nb_output_streams - oc->nb_streams + j];
                 if ((ret = mk_check_stream_specifier(oc, oc->streams[j], stream_spec)) > 0) {
-                    av_dict_set(&oc->streams[j]->metadata, o->metadata[i].u.str, *val ? val : NULL, 0);
                     if (!strcmp(o->metadata[i].u.str, "rotate")) {
-                        ost->rotate_overridden = 1;
+                        char *tail;
+                        double theta = av_strtod(val, &tail);
+                        if (!*tail) {
+                            ost->rotate_overridden = 1;
+                            ost->rotate_override_value = theta;
+                        }
+                    } else {
+                        av_dict_set(&oc->streams[j]->metadata, o->metadata[i].u.str, *val ? val : NULL, 0);
                     }
                 } else if (ret < 0){
                     task->running = 0;
@@ -3054,8 +3119,8 @@ enum OptGroup {
 };
 
 static const mk_option_group_def_t groups[] = {
-    [GROUP_OUTFILE] = { "output file",  "dst", OPT_OUTPUT },
-    [GROUP_INFILE]  = { "input file",   "src",  OPT_INPUT },
+    [GROUP_OUTFILE] = { "output url",  "dst", OPT_OUTPUT },
+    [GROUP_INFILE]  = { "input url",   "src",  OPT_INPUT },
 };
 
 static int mk_open_files(mk_task_ctx_t* task,mk_option_group_list_t *l, const char *inout,
@@ -3135,12 +3200,7 @@ int mk_ffmpeg_parse_options(mk_task_ctx_t* task,int argc, char **argv)
         goto fail;
     }
 
-    /* configure the complex filtergraphs */
-    ret = mk_configure_complex_filters(task);
-    if (ret < 0) {
-        av_log(NULL, AV_LOG_FATAL, "Error configuring complex filters.\n");
-        goto fail;
-    }
+    mk_check_filter_outputs(task);
 
 fail:
     mk_uninit_parse_context(task,&octx);
@@ -3195,10 +3255,8 @@ void mk_init_ffmpeg_option(mk_task_ctx_t* task)
     task->status                      = MK_TASK_STATUS_INIT;
     task->running                     = 0;
     task->transcode_init_done         = 0;
-    task->input_cb.callback           = mk_input_interrupt_cb;
-    task->input_cb.opaque             = task ;
-    task->output_cb.callback          = mk_output_interrupt_cb;
-    task->output_cb.opaque            = task ;
+    task->int_cb.callback             = mk_decode_interrupt_cb;
+    task->int_cb.opaque               = task ;
     task->vstats_file                 = NULL;
     task->nb_frames_dup               = 0;
     task->nb_frames_drop              = 0;
@@ -3208,7 +3266,10 @@ void mk_init_ffmpeg_option(mk_task_ctx_t* task)
     task->main_return_code            = 0;
     task->nparamcount                 = 0;
     task->paramlist                   = NULL;
-    task->heartbeat                   = 0;
+    task->filter_nbthreads            = 0;
+    task->filter_complex_nbthreads    = 0;
+    task->vstats_version              = 2;
+    task->dup_warning                 = 1000;
 }
 
 
@@ -3390,6 +3451,8 @@ const mk_option_def_t options[] = {
         "dump video coding statistics to file" },
     { "vstats_file",  OPT_VIDEO | HAS_ARG | OPT_EXPERT ,                         { .func_arg = mk_opt_vstats_file },
         "dump video coding statistics to file", "file" },
+    { "vstats_version",  OPT_VIDEO | OPT_INT | HAS_ARG | OPT_EXPERT ,            { &vstats_version },
+        "Version of the vstats format to use."},
     { "vf",           OPT_VIDEO | HAS_ARG  | OPT_PERFILE | OPT_OUTPUT,           { .func_arg = mk_opt_video_filters },
         "set video filters", "filter_graph" },
     { "intra_matrix", OPT_VIDEO | HAS_ARG | OPT_EXPERT  | OPT_STRING | OPT_SPEC |
@@ -3493,6 +3556,9 @@ const mk_option_def_t options[] = {
     { "sdp_file", HAS_ARG | OPT_EXPERT | OPT_OUTPUT, {  .func_arg = mk_opt_sdp_file },
         "specify a file in which to print sdp information", "file" },
 
+    { "time_base", HAS_ARG | OPT_STRING | OPT_EXPERT | OPT_SPEC | OPT_OUTPUT, { .off = OFFSET(time_bases) },
+        "set the desired time base hint for output stream (1:24, 1:48000 or 0.04166, 2.0833e-5)", "ratio" },
+
     { "bsf", HAS_ARG | OPT_STRING | OPT_SPEC | OPT_EXPERT | OPT_OUTPUT, { .off = OFFSET(bitstream_filters) },
         "A comma-separated list of bitstream filters", "bitstream_filters" },
     { "absf", HAS_ARG | OPT_AUDIO | OPT_EXPERT| OPT_PERFILE | OPT_OUTPUT, { .func_arg = mk_opt_old2new },
@@ -3512,6 +3578,11 @@ const mk_option_def_t options[] = {
 #if CONFIG_VAAPI
     { "vaapi_device", HAS_ARG | OPT_EXPERT, { .func_arg = mk_opt_vaapi_device },
                     "set VAAPI hardware device (DRM path or X11 display name)", "device" },
+#endif
+
+#if CONFIG_QSV
+    { "qsv_device", HAS_ARG | OPT_STRING | OPT_EXPERT, { &qsv_device },
+            "set QSV hardware device (DirectX adapter index, DRM path or X11 display name)", "device"},
 #endif
 
     { NULL, },

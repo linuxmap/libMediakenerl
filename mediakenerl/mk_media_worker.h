@@ -41,12 +41,19 @@ int                mk_dxva2_init(AVCodecContext *s);
 int                mk_vda_init(AVCodecContext *s);
 int                mk_videotoolbox_init(AVCodecContext *s);
 int                mk_qsv_init(AVCodecContext *s);
-int                mk_qsv_transcode_init(mk_task_ctx_t* task,mk_output_stream_t *ost);
 int                mk_vaapi_decode_init(AVCodecContext *avctx);
 int                mk_vaapi_device_init(const char *device);
 int                mk_cuvid_init(AVCodecContext *s);
-int                mk_cuvid_transcode_init(mk_task_ctx_t* task,mk_output_stream_t*ost);
 void               mk_init_ffmpeg_option(mk_task_ctx_t* task);
+int                mk_init_output_stream(mk_task_ctx_t* task,mk_output_stream_t *ost, char *error, int error_len);
+int                mk_ifilter_has_all_input_formats(mk_task_ctx_t* task,mk_filter_graph_t *fg);
+void               mk_sub2video_update(mk_input_stream_t *ist, AVSubtitle *sub);
+void               mk_check_filter_outputs(void);
+int                mk_ifilter_parameters_from_frame(mk_input_filter_t *ifilter, const AVFrame *frame);
+
+
+
+
 
 /********function for set task option ************/
 void               mk_set_vstat_file(mk_task_ctx_t* task,const char *name);
@@ -67,6 +74,12 @@ void               mk_set_frame_bits_per_raw_sample(mk_task_ctx_t* task,int flag
 void               mk_set_do_deinterlace(mk_task_ctx_t* task,int flag);
 void               mk_set_audio_volume(mk_task_ctx_t* task,int flag);
 void               mk_set_hwaccel_lax_profile_check(mk_task_ctx_t* task,int flag);
+void               mk_set_filter_nbthreads(mk_task_ctx_t* task,int flag);
+void               mk_set_filter_complex_nbthreads(mk_task_ctx_t* task,int flag);
+void               mk_set_vstats_version(mk_task_ctx_t* task,int flag);
+
+
+
 
 int                mk_main_task(mk_task_ctx_t* task);
 

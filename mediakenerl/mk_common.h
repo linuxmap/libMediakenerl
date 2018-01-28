@@ -158,6 +158,7 @@ enum HWAccelID {
     HWACCEL_QSV,
     HWACCEL_VAAPI,
     HWACCEL_CUVID,
+    HWACCEL_D3D11VA,
 };
 
 typedef struct {
@@ -165,7 +166,14 @@ typedef struct {
     int (*init)(AVCodecContext *s);
     enum HWAccelID                id;
     enum AVPixelFormat            pix_fmt;
+    enum AVHWDeviceType           device_type;
 } mk_hw_accel_t;
+
+typedef struct HWDevice {
+    char *name;
+    enum AVHWDeviceType type;
+    AVBufferRef *device_ref;
+} HWDevice;
 
 /* select an input stream for an output stream */
 typedef struct  {
@@ -310,6 +318,8 @@ typedef struct {
     int                           nb_program;
     mk_specifier_opt_t           *time_bases;
     int                           nb_time_bases;
+    mk_specifier_opt_t           *enc_time_bases;
+    int                           nb_enc_time_bases;
 } mk_option_ctx_t;
 
 typedef struct  {
@@ -504,8 +514,8 @@ typedef struct  mk_output_stream_t{
     int64_t                       last_mux_dts;
     // the timebase of the packets sent to the muxer
     AVRational                    mux_timebase;
+    AVRational                    enc_timebase;
     int                           nb_bitstream_filters;
-    uint8_t                      *bsf_extradata_updated;
     AVBSFContext                **bsf_ctx;
     AVCodecContext               *enc_ctx;
     AVCodecParameters            *ref_par; /* associated input codec parameters with encoders options applied */
@@ -604,11 +614,14 @@ typedef struct {
     int                           nb_output_files;
     mk_filter_graph_t           **filtergraphs;
     int                           nb_filtergraphs;
+    int                           nb_hw_devices;
+    HWDevice                    **hw_devices;
     int                           hwaccel_lax_profile_check;
     AVBufferRef                  *hw_device_ctx;
 #if CONFIG_QSV
-   char                          *qsv_device;
+    char                         *qsv_device;
 #endif
+    HWDevice                     *filter_hw_device;
     char                         *vstats_filename;
     char                         *sdp_filename;
     float                         audio_drift_threshold;
@@ -648,6 +661,7 @@ typedef struct {
     int64_t                       decode_error_stat[2];
     uint8_t                      *subtitle_out;
     int                           main_return_code;
+
     //task param
     int                           nparamcount;
     char                        **paramlist;

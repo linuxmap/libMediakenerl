@@ -15,6 +15,7 @@
 #include "libavutil/dict.h"
 #include "libavutil/eval.h"
 #include "libavutil/fifo.h"
+#include "libavutil/hwcontext.h"
 #include "libavutil/pixfmt.h"
 #include "libavutil/rational.h"
 #include "libavutil/threadmessage.h"
@@ -36,14 +37,17 @@ int                mk_filtergraph_is_simple(mk_filter_graph_t*fg);
 int                mk_init_simple_filtergraph(mk_task_ctx_t* task,mk_input_stream_t *ist, mk_output_stream_t *ost);
 int                mk_init_complex_filtergraph(mk_task_ctx_t* task,mk_filter_graph_t *fg);
 int                mk_ffmpeg_parse_options(mk_task_ctx_t* task,int argc, char **argv);
-int                mk_vdpau_init(AVCodecContext *s);
-int                mk_dxva2_init(AVCodecContext *s);
 int                mk_vda_init(AVCodecContext *s);
 int                mk_videotoolbox_init(AVCodecContext *s);
 int                mk_qsv_init(AVCodecContext *s);
-int                mk_vaapi_decode_init(AVCodecContext *avctx);
-int                mk_vaapi_device_init(const char *device);
 int                mk_cuvid_init(AVCodecContext *s);
+HWDevice*          mk_hw_device_get_by_name(mk_task_ctx_t* task,const char *name);
+int                mk_hw_device_init_from_string(mk_task_ctx_t* task,const char *arg, HWDevice **dev);
+void               mk_hw_device_free_all(mk_task_ctx_t* task);
+int                mk_hw_device_setup_for_decode(mk_task_ctx_t* task,mk_input_stream_t *ist);
+int                mk_hw_device_setup_for_encode(mk_task_ctx_t* task,mk_output_stream_t *ost);
+int                mk_hwaccel_decode_init(AVCodecContext *avctx);
+
 void               mk_init_ffmpeg_option(mk_task_ctx_t* task);
 int                mk_init_output_stream(mk_task_ctx_t* task,mk_output_stream_t *ost, char *error, int error_len);
 int                mk_ifilter_has_all_input_formats(mk_task_ctx_t* task,mk_filter_graph_t *fg);

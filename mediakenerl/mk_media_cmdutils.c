@@ -168,7 +168,7 @@ void mk_cleanup_task(mk_task_ctx_t* task)
                                      sizeof(frame), NULL);
                 av_frame_free(&frame);
             }
-            av_fifo_free(fg->inputs[j]->frame_queue);
+            av_fifo_freep(&fg->inputs[j]->frame_queue);
             if (fg->inputs[j]->ist->sub2video.sub_queue) {
                 while (av_fifo_size(fg->inputs[j]->ist->sub2video.sub_queue)) {
                     AVSubtitle sub;
@@ -176,7 +176,7 @@ void mk_cleanup_task(mk_task_ctx_t* task)
                                          &sub, sizeof(sub), NULL);
                     avsubtitle_free(&sub);
                 }
-                av_fifo_free(fg->inputs[j]->ist->sub2video.sub_queue);
+                av_fifo_freep(&fg->inputs[j]->ist->sub2video.sub_queue);
             }
             av_buffer_unref(&fg->inputs[j]->hw_frames_ctx);
             av_freep(&fg->inputs[j]->name);
@@ -222,7 +222,6 @@ void mk_cleanup_task(mk_task_ctx_t* task)
         for (j = 0; j < ost->nb_bitstream_filters; j++)
             av_bsf_free(&ost->bsf_ctx[j]);
         av_freep(&ost->bsf_ctx);
-        av_freep(&ost->bsf_extradata_updated);
 
         av_frame_free(&ost->filtered_frame);
         av_frame_free(&ost->last_frame);

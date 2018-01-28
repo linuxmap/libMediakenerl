@@ -169,11 +169,11 @@ typedef struct {
     enum AVHWDeviceType           device_type;
 } mk_hw_accel_t;
 
-typedef struct HWDevice {
+typedef struct {
     char *name;
     enum AVHWDeviceType type;
     AVBufferRef *device_ref;
-} HWDevice;
+} mk_hw_device_t;
 
 /* select an input stream for an output stream */
 typedef struct  {
@@ -615,13 +615,13 @@ typedef struct {
     mk_filter_graph_t           **filtergraphs;
     int                           nb_filtergraphs;
     int                           nb_hw_devices;
-    HWDevice                    **hw_devices;
+    mk_hw_device_t              **hw_devices;
     int                           hwaccel_lax_profile_check;
     AVBufferRef                  *hw_device_ctx;
 #if CONFIG_QSV
     char                         *qsv_device;
 #endif
-    HWDevice                     *filter_hw_device;
+    mk_hw_device_t               *filter_hw_device;
     char                         *vstats_filename;
     char                         *sdp_filename;
     float                         audio_drift_threshold;

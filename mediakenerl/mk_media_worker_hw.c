@@ -24,9 +24,9 @@
 
 
 
-static HWDevice *mk_hw_device_get_by_type(mk_task_ctx_t* task,enum AVHWDeviceType type)
+static mk_hw_device_t *mk_hw_device_get_by_type(mk_task_ctx_t* task,enum AVHWDeviceType type)
 {
-    HWDevice *found = NULL;
+    mk_hw_device_t *found = NULL;
     int i;
     for (i = 0; i < task->nb_hw_devices; i++) {
         if (task->hw_devices[i]->type == type) {
@@ -38,7 +38,7 @@ static HWDevice *mk_hw_device_get_by_type(mk_task_ctx_t* task,enum AVHWDeviceTyp
     return found;
 }
 
-HWDevice *mk_hw_device_get_by_name(mk_task_ctx_t* task,const char *name)
+mk_hw_device_t *mk_hw_device_get_by_name(mk_task_ctx_t* task,const char *name)
 {
     int i;
     for (i = 0; i < task->nb_hw_devices; i++) {
@@ -48,7 +48,7 @@ HWDevice *mk_hw_device_get_by_name(mk_task_ctx_t* task,const char *name)
     return NULL;
 }
 
-static HWDevice *mk_hw_device_add(mk_task_ctx_t* task)
+static mk_hw_device_t *mk_hw_device_add(mk_task_ctx_t* task)
 {
     int err;
     err = av_reallocp_array(&task->hw_devices, task->nb_hw_devices + 1,
@@ -57,13 +57,13 @@ static HWDevice *mk_hw_device_add(mk_task_ctx_t* task)
         task->nb_hw_devices = 0;
         return NULL;
     }
-    task->hw_devices[task->nb_hw_devices] = av_mallocz(sizeof(HWDevice));
+    task->hw_devices[task->nb_hw_devices] = av_mallocz(sizeof(mk_hw_device_t));
     if (!task->hw_devices[task->nb_hw_devices])
         return NULL;
     return task->hw_devices[task->nb_hw_devices++];
 }
 
-int mk_hw_device_init_from_string(mk_task_ctx_t* task,const char *arg, HWDevice **dev_out)
+int mk_hw_device_init_from_string(mk_task_ctx_t* task,const char *arg, mk_hw_device_t **dev_out)
 {
     // "type=name:device,key=value,key2=value2"
     // "type:device,key=value,key2=value2"
@@ -75,7 +75,7 @@ int mk_hw_device_init_from_string(mk_task_ctx_t* task,const char *arg, HWDevice 
     AVDictionary *options = NULL;
     char *type_name = NULL, *name = NULL, *device = NULL;
     enum AVHWDeviceType type;
-    HWDevice *dev, *src;
+    mk_hw_device_t *dev, *src;
     AVBufferRef *device_ref = NULL;
     int err;
     const char *errmsg, *p, *q;
@@ -254,7 +254,7 @@ static enum AVHWDeviceType mk_hw_device_match_type_in_name(const char *codec_nam
 int mk_hw_device_setup_for_decode(mk_task_ctx_t* task,mk_input_stream_t *ist)
 {
     enum AVHWDeviceType type;
-    HWDevice *dev;
+    mk_hw_device_t *dev;
     int err;
 
     if (ist->hwaccel_device) {
@@ -311,7 +311,7 @@ int mk_hw_device_setup_for_decode(mk_task_ctx_t* task,mk_input_stream_t *ist)
 int mk_hw_device_setup_for_encode(mk_task_ctx_t* task,mk_output_stream_t *ost)
 {
     enum AVHWDeviceType type;
-    HWDevice *dev;
+    mk_hw_device_t *dev;
 
     type = mk_hw_device_match_type_in_name(ost->enc->name);
     if (type != AV_HWDEVICE_TYPE_NONE) {

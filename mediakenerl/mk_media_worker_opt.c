@@ -453,7 +453,7 @@ static int mk_opt_sdp_file(mk_task_ctx_t* task,void *optctx, const char *opt, co
 #if CONFIG_VAAPI
 static int mk_opt_vaapi_device(mk_task_ctx_t* task,void *optctx, const char *opt, const char *arg)
 {
-    HWDevice *dev;
+    mk_hw_device_t *dev;
     const char *prefix = "vaapi:";
     char *tmp;
     int err;

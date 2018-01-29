@@ -69,7 +69,7 @@ const mk_hw_accel_t hwaccels[] = {
           AV_HWDEVICE_TYPE_NONE },
 #endif
 #if CONFIG_LIBMFX
-        { "qsv",   qsv_init,   HWACCEL_QSV,   AV_PIX_FMT_QSV,
+        { "qsv",   mk_qsv_init,   HWACCEL_QSV,   AV_PIX_FMT_QSV,
           AV_HWDEVICE_TYPE_NONE },
 #endif
 #if CONFIG_VAAPI
@@ -77,7 +77,7 @@ const mk_hw_accel_t hwaccels[] = {
           AV_HWDEVICE_TYPE_VAAPI },
 #endif
 #if CONFIG_CUVID
-        { "cuvid", cuvid_init, HWACCEL_CUVID, AV_PIX_FMT_CUDA,
+        { "cuvid", mk_cuvid_init, HWACCEL_CUVID, AV_PIX_FMT_CUDA,
           AV_HWDEVICE_TYPE_NONE },
 #endif
         { 0 },

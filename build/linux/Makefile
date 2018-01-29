@@ -34,7 +34,7 @@ INCPATH   += -I./ -I$(SRC_DIR) -I$(FFMPEG_DIR)
 
 
 CFILES    += $(SRC_DIR)mk_media_cmdutils.c $(SRC_DIR)mk_media_worker.c $(SRC_DIR)mk_media_worker_opt.c 
-CFILES    += $(SRC_DIR)mk_media_worker_filter.c $(SRC_DIR)mk_thread.c 
+CFILES    += $(SRC_DIR)mk_media_worker_filter.c $(SRC_DIR)mk_media_worker_hw.c $(SRC_DIR)mk_thread.c 
 CFILES    += $(SRC_DIR)mk_task_monitor.c $(SRC_DIR)mk_mutex.c $(SRC_DIR)libMediaKenerl.c
 HEADFILES += $(SRC_DIR)mk_config.h $(SRC_DIR)mk_common.h $(SRC_DIR)mk_def.h $(SRC_DIR)mk_media_cmdutils.h
 HEADFILES += $(SRC_DIR)mk_media_cmdutils_opts.h $(SRC_DIR)mk_media_worker.h $(SRC_DIR)mk_thread.h 
@@ -45,13 +45,13 @@ CFILES    += $(SRC_DIR)mk_media_cmdutils_opencl.c
 CFLAGS    += -D CONFIG_OPENCL=1
 endif
 
-ifdef DXVA
-CFILES    += $(SRC_DIR)mk_media_dxva2.c
+ifdef CONFIG_LIBMFX
+CFILES    += $(SRC_DIR)mk_media_qsv.c
 CFLAGS    += -D HAVE_DXVA2_LIB=1
 endif
 
-ifdef VDPAU
-CFILES    += $(SRC_DIR)mk_media_vdpau.c
+ifdef CONFIG_CUVID
+CFILES    += $(SRC_DIR)mk_media_cuvid.c
 CFLAGS    += -D HAVE_VDPAU_X11=1
 endif
 

@@ -4,7 +4,7 @@
 #include <stdlib.h>
 #include <errno.h>
 #include <limits.h>
-#include <stdatomic.h>
+//#include <stdatomic.h>
 #include <stdint.h>
 #include <stdio.h>
 
@@ -1444,20 +1444,20 @@ static void mk_flush_encoders(mk_task_ctx_t* task)
                     }
                 }
 
-                if (!mk_ifilter_has_all_input_formats(fg))
+                if (!mk_ifilter_has_all_input_formats(task,fg))
                     continue;
 
-                ret = mk_configure_filtergraph(fg);
+                ret = mk_configure_filtergraph(task,fg);
                 if (ret < 0) {
                     av_log(NULL, AV_LOG_ERROR, "Error configuring filter graph\n");
                     task->running = 0;
                     return;
                 }
 
-                mk_finish_output_stream(ost);
+                mk_finish_output_stream(task,ost);
             }
 
-            ret = mk_init_output_stream(ost, error, sizeof(error));
+            ret = mk_init_output_stream(task,ost, error, sizeof(error));
             if (ret < 0) {
                 av_log(NULL, AV_LOG_ERROR, "Error initializing output stream %d:%d -- %s\n",
                        ost->file_index, ost->index, error);
@@ -1519,7 +1519,7 @@ static void mk_flush_encoders(mk_task_ctx_t* task)
                 fprintf(ost->logfile, "%s", enc->stats_out);
             }
             if (ret == AVERROR_EOF) {
-                mk_output_packet(of, &pkt, ost, 1);
+                mk_output_packet(task,of, &pkt, ost, 1);
                 break;
             }
             if (ost->finished & MUXER_FINISHED) {
@@ -1608,7 +1608,7 @@ static void mk_do_streamcopy(mk_task_ctx_t* task,mk_input_stream_t *ist, mk_outp
         opkt.pts = AV_NOPTS_VALUE;
 
     if (pkt->dts == AV_NOPTS_VALUE)
-        opkt.dts = av_rescale_q(ist->dts, AV_TIME_BASE_Q, ost->mux_timebasee);
+        opkt.dts = av_rescale_q(ist->dts, AV_TIME_BASE_Q, ost->mux_timebase);
     else
         opkt.dts = av_rescale_q(pkt->dts, ist->st->time_base, ost->mux_timebase);
     opkt.dts -= ost_tb_start_time;
@@ -1759,7 +1759,7 @@ static int mk_ifilter_send_frame(mk_task_ctx_t* task,mk_input_filter_t *ifilter,
     /* (re)init the graph if possible, otherwise buffer the frame and return */
     if (need_reinit || !fg->graph) {
         for (i = 0; i < fg->nb_inputs; i++) {
-            if (!mk_ifilter_has_all_input_formats(fg)) {
+            if (!mk_ifilter_has_all_input_formats(task,fg)) {
                 AVFrame *tmp = av_frame_clone(frame);
                 if (!tmp)
                     return AVERROR(ENOMEM);
@@ -1777,7 +1777,7 @@ static int mk_ifilter_send_frame(mk_task_ctx_t* task,mk_input_filter_t *ifilter,
             }
         }
 
-        ret = mk_reap_filters(1);
+        ret = mk_reap_filters(task,1);
         if (ret < 0 && ret != AVERROR_EOF) {
             char errbuf[128];
             av_strerror(ret, errbuf, sizeof(errbuf));
@@ -1786,7 +1786,7 @@ static int mk_ifilter_send_frame(mk_task_ctx_t* task,mk_input_filter_t *ifilter,
             return ret;
         }
 
-        ret = mk_configure_filtergraph(fg);
+        ret = mk_configure_filtergraph(task,fg);
         if (ret < 0) {
             av_log(NULL, AV_LOG_ERROR, "Error reinitializing filters!\n");
             return ret;
@@ -1803,7 +1803,7 @@ static int mk_ifilter_send_frame(mk_task_ctx_t* task,mk_input_filter_t *ifilter,
     return 0;
 }
 
-static int mk_ifilter_send_eof(mk_input_filter_t *ifilter, int64_t pts)
+static int mk_ifilter_send_eof(mk_task_ctx_t* task,mk_input_filter_t *ifilter, int64_t pts)
 {
     int i, j, ret;
 
@@ -1824,7 +1824,7 @@ static int mk_ifilter_send_eof(mk_input_filter_t *ifilter, int64_t pts)
             // ever being configured.
             // Mark the output streams as finished.
             for (j = 0; j < fg->nb_outputs; j++)
-                mk_finish_output_stream(fg->outputs[j]->ost);
+                mk_finish_output_stream(task,fg->outputs[j]->ost);
         }
     }
 
@@ -2135,7 +2135,7 @@ out:
     return ret;
 }
 
-static int mk_send_filter_eof(mk_input_stream_t *ist)
+static int mk_send_filter_eof(mk_task_ctx_t* task,mk_input_stream_t *ist)
 {
     int i, ret;
     /* TODO keep pts also in stream time base to avoid converting back */
@@ -2143,7 +2143,7 @@ static int mk_send_filter_eof(mk_input_stream_t *ist)
                                    AV_ROUND_NEAR_INF | AV_ROUND_PASS_MINMAX);
 
     for (i = 0; i < ist->nb_filters; i++) {
-        ret = mk_ifilter_send_eof(ist->filters[i], pts);
+        ret = mk_ifilter_send_eof(task,ist->filters[i], pts);
         if (ret < 0)
             return ret;
     }
@@ -2284,7 +2284,7 @@ static int mk_process_input_packet(mk_task_ctx_t* task,mk_input_stream_t *ist, c
     /* after flushing, send an EOF on all the filter inputs attached to the stream */
     /* except when looping we need to flush but not to send an EOF */
     if (!pkt && ist->decoding_needed && eof_reached&& !no_eof) {
-        int ret = mk_send_filter_eof(ist);
+        int ret = mk_send_filter_eof(task,ist);
         if (ret < 0) {
             av_log(NULL, AV_LOG_FATAL, "Error marking filters as finished\n");
             task->running = 0;
@@ -2718,46 +2718,6 @@ static int mk_init_output_stream_streamcopy(mk_task_ctx_t *task,mk_output_stream
 
     return 0;
 }
-static void mk_set_encoder_id(mk_output_file_t *of, mk_output_stream_t *ost)
-{
-    AVDictionaryEntry *e;
-
-    uint8_t *encoder_string;
-    int encoder_string_len;
-    int format_flags = 0;
-    int codec_flags = 0;
-
-    if (av_dict_get(ost->st->metadata, "encoder",  NULL, 0))
-        return;
-
-    e = av_dict_get(of->opts, "fflags", NULL, 0);
-    if (e) {
-        const AVOption *o = av_opt_find(of->ctx, "fflags", NULL, 0, 0);
-        if (!o)
-            return;
-        av_opt_eval_flags(of->ctx, o, e->value, &format_flags);
-    }
-    e = av_dict_get(ost->encoder_opts, "flags", NULL, 0);
-    if (e) {
-        const AVOption *o = av_opt_find(ost->enc_ctx, "flags", NULL, 0, 0);
-        if (!o)
-            return;
-        av_opt_eval_flags(ost->enc_ctx, o, e->value, &codec_flags);
-    }
-
-    encoder_string_len = sizeof(LIBAVCODEC_IDENT) + strlen(ost->enc->name) + 2;
-    encoder_string     = av_mallocz(encoder_string_len);
-    if (!encoder_string)
-        exit_program(1);
-
-    if (!(format_flags & AVFMT_FLAG_BITEXACT) && !(codec_flags & AV_CODEC_FLAG_BITEXACT))
-        av_strlcpy(encoder_string, LIBAVCODEC_IDENT " ", encoder_string_len);
-    else
-        av_strlcpy(encoder_string, "Lavc ", encoder_string_len);
-    av_strlcat(encoder_string, ost->enc->name, encoder_string_len);
-    av_dict_set(&ost->st->metadata, "encoder",  encoder_string,
-                AV_DICT_DONT_STRDUP_VAL | AV_DICT_DONT_OVERWRITE);
-}
 
 static void mk_parse_forced_key_frames(mk_task_ctx_t* task,char *kf, mk_output_stream_t *ost,
                                     AVCodecContext *avctx)
@@ -2828,7 +2788,7 @@ static void mk_parse_forced_key_frames(mk_task_ctx_t* task,char *kf, mk_output_s
 
 static void mk_init_encoder_time_base(mk_task_ctx_t *task,mk_output_stream_t *ost, AVRational default_time_base)
 {
-    mk_input_stream_t *ist = mk_get_input_stream(ost);
+    mk_input_stream_t *ist = mk_get_input_stream(task,ost);
     AVCodecContext *enc_ctx = ost->enc_ctx;
     AVFormatContext *oc;
 
@@ -2852,13 +2812,13 @@ static void mk_init_encoder_time_base(mk_task_ctx_t *task,mk_output_stream_t *os
 
 static int mk_init_output_stream_encode(mk_task_ctx_t *task,mk_output_stream_t *ost)
 {
-    mk_input_stream_t *ist = mk_get_input_stream(ost);
+    mk_input_stream_t *ist = mk_get_input_stream(task,ost);
     AVCodecContext *enc_ctx = ost->enc_ctx;
     AVCodecContext *dec_ctx = NULL;
     AVFormatContext *oc = task->output_files[ost->file_index]->ctx;
     int j, ret;
 
-    mk_set_encoder_id(task->output_files[ost->file_index], ost);
+    mk_set_encoder_id(task,task->output_files[ost->file_index], ost);
 
     // Muxers use AV_PKT_DATA_DISPLAYMATRIX to signal rotation. On the other
     // hand, the legacy API makes demuxers set "rotate" metadata entries,
@@ -2927,7 +2887,7 @@ static int mk_init_output_stream_encode(mk_task_ctx_t *task,mk_output_stream_t *
         mk_init_encoder_time_base(task,ost, av_inv_q(ost->frame_rate));
         if (!(enc_ctx->time_base.num && enc_ctx->time_base.den))
             enc_ctx->time_base = av_buffersink_get_time_base(ost->filter->filter);
-        if (   av_q2d(enc_ctx->time_base) < 0.001 && video_sync_method != VSYNC_PASSTHROUGH
+        if (   av_q2d(enc_ctx->time_base) < 0.001 && task->video_sync_method != VSYNC_PASSTHROUGH
            && (task->video_sync_method == VSYNC_CFR || task->video_sync_method == VSYNC_VSCFR || (task->video_sync_method == VSYNC_AUTO && !(oc->oformat->flags & AVFMT_VARIABLE_FPS)))){
             av_log(oc, AV_LOG_WARNING, "Frame rate very high for a muxer not efficiently supporting it.\n"
                                        "Please consider specifying a lower framerate, a different muxer or -vsync 2\n");
@@ -2957,7 +2917,7 @@ static int mk_init_output_stream_encode(mk_task_ctx_t *task,mk_output_stream_t *
             enc_ctx->width   != dec_ctx->width  ||
             enc_ctx->height  != dec_ctx->height ||
             enc_ctx->pix_fmt != dec_ctx->pix_fmt) {
-            enc_ctx->bits_per_raw_sample = frame_bits_per_raw_sample;
+            enc_ctx->bits_per_raw_sample = task->frame_bits_per_raw_sample;
         }
 
         if (ost->forced_keyframes) {
@@ -3413,7 +3373,8 @@ static int mk_transcode_init(mk_task_ctx_t* task)
         return ret;
     }
 
-    atomic_store(&task->transcode_init_done,1);
+    //atomic_store(&task->transcode_init_done,1);
+    task->transcode_init_done = 1;
 
     return 0;
 }

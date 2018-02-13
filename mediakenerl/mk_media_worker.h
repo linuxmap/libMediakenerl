@@ -49,10 +49,11 @@ int                mk_hw_device_setup_for_encode(mk_task_ctx_t* task,mk_output_s
 int                mk_hwaccel_decode_init(AVCodecContext *avctx);
 
 void               mk_init_ffmpeg_option(mk_task_ctx_t* task);
-int                mk_init_output_stream(mk_task_ctx_t* task,mk_output_stream_t *ost, char *error, int error_len);
+static int         mk_init_output_stream(mk_task_ctx_t* task,mk_output_stream_t *ost, char *error, int error_len);
+static void        mk_set_encoder_id(mk_task_ctx_t* task,mk_output_file_t *of, mk_output_stream_t *ost);
 int                mk_ifilter_has_all_input_formats(mk_task_ctx_t* task,mk_filter_graph_t *fg);
 void               mk_sub2video_update(mk_input_stream_t *ist, AVSubtitle *sub);
-void               mk_check_filter_outputs(void);
+void               mk_check_filter_outputs(mk_task_ctx_t* task);
 int                mk_ifilter_parameters_from_frame(mk_input_filter_t *ifilter, const AVFrame *frame);
 
 

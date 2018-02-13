@@ -543,7 +543,7 @@ build_openssl()
         return 1
     fi
     
-    ./config --prefix=${PREFIX_ROOT}
+    ./config shared --prefix=${PREFIX_ROOT}
     if [ 0 -ne ${?} ]; then
         echo "config openssl fail!\n"
         return 1
@@ -606,7 +606,7 @@ build_rtmpdump()
     LIBRARY_PATH=${PREFIX_ROOT}/lib:${LIBRARY_PATH:=/usr/local/lib/}
     export LIBRARY_PATH 
                 
-    make SHARED=no && make install SHARED=no
+    make SHARED=yes && make install SHARED=yes
     
     if [ 0 -ne ${?} ]; then
         echo "build rtmpdump fail!\n"
@@ -945,7 +945,7 @@ build_libvpx()
     
     cd libvpx*
     export PATH=${PREFIX_ROOT}/bin:${PATH}
-    ./configure --prefix=${PREFIX_ROOT}
+    ./configure --prefix=${PREFIX_ROOT} --enable-pic --enable-shared
     if [ 0 -ne ${?} ]; then
         echo "configure libvpx fail!\n"
         return 1

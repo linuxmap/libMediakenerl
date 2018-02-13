@@ -483,7 +483,7 @@ static int mk_opt_init_hw_device(mk_task_ctx_t* task,void *optctx, const char *o
         task->running = 0;
         return -1;
     } else {
-        return mk_hw_device_init_from_string(arg, NULL);
+        return mk_hw_device_init_from_string(task,arg, NULL);
     }
 }
 
@@ -1337,64 +1337,63 @@ static mk_output_stream_t *mk_new_output_stream(mk_task_ctx_t* task,mk_option_ct
 
 
     MATCH_PER_STREAM_OPT(bitstream_filters, str, bsfs, oc, st);
-        while (bsfs && *bsfs) {
-            const AVBitStreamFilter *filter;
-            char *bsf, *bsf_options_str, *bsf_name;
+    while (bsfs && *bsfs) {
+        const AVBitStreamFilter *filter;
+        char *bsf, *bsf_options_str, *bsf_name;
 
-            bsf = av_get_token(&bsfs, ",");
-            if (!bsf){
-                task->running = 0;
-                return NULL;
-            }
-            bsf_name = av_strtok(bsf, "=", &bsf_options_str);
-            if (!bsf_name) {
-                task->running = 0;
-                return NULL;
-            }
-
-            filter = av_bsf_get_by_name(bsf_name);
-            if (!filter) {
-                av_log(NULL, AV_LOG_FATAL, "Unknown bitstream filter %s\n", bsf_name);
-                task->running = 0;
-                return NULL;
-            }
-
-            ost->bsf_ctx = av_realloc_array(ost->bsf_ctx,
-                                            ost->nb_bitstream_filters + 1,
-                                            sizeof(*ost->bsf_ctx));
-            if (!ost->bsf_ctx) {
-                task->running = 0;
-                return NULL;
-            }
-
-            ret = av_bsf_alloc(filter, &ost->bsf_ctx[ost->nb_bitstream_filters]);
-            if (ret < 0) {
-                av_log(NULL, AV_LOG_ERROR, "Error allocating a bitstream filter context\n");
-                task->running = 0;
-                return NULL;
-            }
-
-            ost->nb_bitstream_filters++;
-
-            if (bsf_options_str && filter->priv_class) {
-                const AVOption *opt = av_opt_next(ost->bsf_ctx[ost->nb_bitstream_filters-1]->priv_data, NULL);
-                const char * shorthand[2] = {NULL};
-
-                if (opt)
-                    shorthand[0] = opt->name;
-
-                ret = av_opt_set_from_string(ost->bsf_ctx[ost->nb_bitstream_filters-1]->priv_data, bsf_options_str, shorthand, "=", ":");
-                if (ret < 0) {
-                    av_log(NULL, AV_LOG_ERROR, "Error parsing options for bitstream filter %s\n", bsf_name);
-                    task->running = 0;
-                    return NULL;
-                }
-            }
-            av_freep(&bsf);
-
-            if (*bsfs)
-                bsfs++;
+        bsf = av_get_token(&bsfs, ",");
+        if (!bsf){
+            task->running = 0;
+            return NULL;
         }
+        bsf_name = av_strtok(bsf, "=", &bsf_options_str);
+        if (!bsf_name) {
+            task->running = 0;
+            return NULL;
+        }
+
+        filter = av_bsf_get_by_name(bsf_name);
+        if (!filter) {
+            av_log(NULL, AV_LOG_FATAL, "Unknown bitstream filter %s\n", bsf_name);
+            task->running = 0;
+            return NULL;
+        }
+
+        ost->bsf_ctx = av_realloc_array(ost->bsf_ctx,
+                                        ost->nb_bitstream_filters + 1,
+                                        sizeof(*ost->bsf_ctx));
+        if (!ost->bsf_ctx) {
+            task->running = 0;
+            return NULL;
+        }
+
+        ret = av_bsf_alloc(filter, &ost->bsf_ctx[ost->nb_bitstream_filters]);
+        if (ret < 0) {
+            av_log(NULL, AV_LOG_ERROR, "Error allocating a bitstream filter context\n");
+            task->running = 0;
+            return NULL;
+        }
+
+        ost->nb_bitstream_filters++;
+
+        if (bsf_options_str && filter->priv_class) {
+            const AVOption *opt = av_opt_next(ost->bsf_ctx[ost->nb_bitstream_filters-1]->priv_data, NULL);
+            const char * shorthand[2] = {NULL};
+
+            if (opt)
+                shorthand[0] = opt->name;
+
+            ret = av_opt_set_from_string(ost->bsf_ctx[ost->nb_bitstream_filters-1]->priv_data, bsf_options_str, shorthand, "=", ":");
+            if (ret < 0) {
+                av_log(NULL, AV_LOG_ERROR, "Error parsing options for bitstream filter %s\n", bsf_name);
+                task->running = 0;
+                return NULL;
+            }
+        }
+        av_freep(&bsf);
+
+        if (*bsfs)
+            bsfs++;
     }
 
     MATCH_PER_STREAM_OPT(codec_tags, str, codec_tag, oc, st);
@@ -3342,6 +3341,7 @@ void mk_init_ffmpeg_option(mk_task_ctx_t* task)
     task->filter_complex_nbthreads    = 0;
     task->vstats_version              = 2;
     task->dup_warning                 = 1000;
+    task->heartbeat                   = 0;
 }
 
 
@@ -3525,7 +3525,7 @@ const mk_option_def_t options[] = {
         "dump video coding statistics to file" },
     { "vstats_file",  OPT_VIDEO | HAS_ARG | OPT_EXPERT ,                         { .func_arg = mk_opt_vstats_file },
         "dump video coding statistics to file", "file" },
-    { "vstats_version",  OPT_VIDEO | OPT_INT | HAS_ARG | OPT_EXPERT ,            { &vstats_version },
+    { "vstats_version",  OPT_VIDEO | HAS_ARG | OPT_EXPERT ,                      { .func_arg = mk_set_vstats_version},
         "Version of the vstats format to use."},
     { "vf",           OPT_VIDEO | HAS_ARG  | OPT_PERFILE | OPT_OUTPUT,           { .func_arg = mk_opt_video_filters },
         "set video filters", "filter_graph" },

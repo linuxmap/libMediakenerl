@@ -283,7 +283,7 @@ int mk_hw_device_setup_for_decode(mk_task_ctx_t* task,mk_input_stream_t *ist)
         else
             type = mk_hw_device_match_type_in_name(ist->dec->name);
         if (type != AV_HWDEVICE_TYPE_NONE) {
-            dev = mk_hw_device_get_by_type(type);
+            dev = mk_hw_device_get_by_type(task,type);
             if (!dev) {
                 mk_hw_device_init_from_string(task,av_hwdevice_get_type_name(type),
                                            &dev);
@@ -334,7 +334,7 @@ int mk_hw_device_setup_for_encode(mk_task_ctx_t* task,mk_output_stream_t *ost)
 
 static int mk_hwaccel_retrieve_data(AVCodecContext *avctx, AVFrame *input)
 {
-    InputStream *ist = avctx->opaque;
+    mk_input_stream_t *ist = avctx->opaque;
     AVFrame *output = NULL;
     enum AVPixelFormat output_format = ist->hwaccel_output_format;
     int err;

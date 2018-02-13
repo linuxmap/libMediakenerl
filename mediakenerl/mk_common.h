@@ -7,7 +7,7 @@
 
 #include <stdint.h>
 #include <stdio.h>
-#include <stdatomic.h>
+//#include <stdatomic.h>
 #include <signal.h>
 #if MK_APP_OS == MK_OS_WIN32
 #define snprintf _snprintf
@@ -29,6 +29,8 @@
 #include "libavutil/pixfmt.h"
 #include "libavutil/rational.h"
 #include "libavutil/threadmessage.h"
+#include "libavutil/hwcontext.h"
+
 
 #include "libswresample/swresample.h"
 
@@ -652,7 +654,8 @@ typedef struct {
     AVDictionary                 *codec_opts;
     AVDictionary                 *resample_opts;
     volatile int                  running;
-    atomic_int                    transcode_init_done;
+    //atomic_int                    transcode_init_done;
+    volatile int                  transcode_init_done;
     volatile int                  exited;
     FILE                         *vstats_file;
     int                           nb_frames_dup;
@@ -669,6 +672,7 @@ typedef struct {
     mk_mutex_t                   *mutex;
     int                           status;
     mk_task_stat_info_t           stat;
+    time_t                        heartbeat;
 } mk_task_ctx_t;
 
 #endif /*__MK_MEDIA_COMMON_H__*/

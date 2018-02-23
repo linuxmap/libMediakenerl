@@ -1347,7 +1347,7 @@ if [ $# == 0 ]; then
     exit
 fi
 
-while getopts "help:prefix" opt; do  
+while getopts "help:prefix:third" opt; do  
   case $opt in  
     h)  
       show_help   

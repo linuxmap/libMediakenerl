@@ -8,7 +8,6 @@ export MK_ROOT=$PWD
 export USR_ROOT=${MK_ROOT}/extend/
 export THIRD_ROOT=${CURRENT_PATH}/3rd_party/
 export PATCH_ROOT=${CURRENT_PATH}/patch/
-export SCRIPT_ROOT=${CURRENT_PATH}/script/
 export PREFIX_ROOT=${USR_ROOT}
 echo "------------------------------------------------------------------------------"
 echo " MK_ROOT exported as ${MK_ROOT}"
@@ -1338,6 +1337,7 @@ show_help()
 {
     echo "-h: show the help info"
     echo "-p: set the install path"
+    echo "-t: set the 3rd party code path"
     echo " e.g.: $0 -p /usr/local/" 
 }
 
@@ -1353,11 +1353,16 @@ while getopts "help:prefix" opt; do
       show_help   
       ;;  
     p)  
-      export PREFIX_ROOT=${OPTARG}  
-      setup      
-      ;;    
+      export PREFIX_ROOT=${OPTARG}        
+      ;; 
+    t)  
+      export THIRD_ROOT=${OPTARG}        
+      ;;       
     ?)  
       echo "Invalid option: ${OPTARG}"   
       ;;  
   esac  
-done  
+done
+ 
+setup
+exit 
